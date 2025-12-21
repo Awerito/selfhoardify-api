@@ -16,6 +16,7 @@ from app.scheduler.jobs.spotify import (
     poll_recently_played,
 )
 from app.services.plays import sync_all_missing_metadata, backfill_plays
+from app.services.rate_limiter import spotify_rate_limiter
 
 router = APIRouter(prefix="/spotify", tags=["Spotify"])
 
@@ -107,3 +108,9 @@ async def manual_sync_metadata(_: User = Depends(current_active_user)):
         **backfill_result,
         **sync_result,
     }
+
+
+@router.get("/rate-limit-stats", summary="Get rate limiter stats")
+async def rate_limit_stats(_: User = Depends(current_active_user)):
+    """Get current Spotify API rate limiter statistics."""
+    return spotify_rate_limiter.get_stats()

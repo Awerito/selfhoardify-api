@@ -4,6 +4,7 @@ import spotipy
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pymongo import UpdateOne
 
+from app.services.rate_limiter import spotify_rate_limiter
 from app.utils.logger import logger
 
 
@@ -176,6 +177,7 @@ async def sync_missing_artists(
 
     # Fetch from Spotify
     artists_data = sp.artists(missing_ids)
+    spotify_rate_limiter.record_requests(1)
     artists = artists_data.get("artists", [])
 
     docs = []
@@ -214,6 +216,7 @@ async def sync_missing_album(
 
     # Fetch from Spotify
     album = sp.album(album_id)
+    spotify_rate_limiter.record_requests(1)
     if not album:
         return 0
 
@@ -263,8 +266,10 @@ async def sync_all_missing_metadata(
 
     # Fetch missing artists in batches of 50
     for i in range(0, len(missing_artist_ids), 50):
+        await spotify_rate_limiter.wait_if_needed()
         batch = missing_artist_ids[i : i + 50]
         artists_data = sp.artists(batch)
+        spotify_rate_limiter.record_requests(1)
         artists = artists_data.get("artists", [])
 
         docs = []
@@ -303,8 +308,10 @@ async def sync_all_missing_metadata(
 
     # Fetch missing albums in batches of 20
     for i in range(0, len(missing_album_ids), 20):
+        await spotify_rate_limiter.wait_if_needed()
         batch = missing_album_ids[i : i + 20]
         albums_data = sp.albums(batch)
+        spotify_rate_limiter.record_requests(1)
         albums = albums_data.get("albums", [])
 
         docs = []
@@ -367,8 +374,10 @@ async def backfill_plays(db: AsyncIOMotorDatabase, sp: spotipy.Spotify) -> dict:
 
     # Fetch tracks in batches of 50
     for i in range(0, len(missing_track_ids), 50):
+        await spotify_rate_limiter.wait_if_needed()
         batch = missing_track_ids[i : i + 50]
         tracks_response = sp.tracks(batch)
+        spotify_rate_limiter.record_requests(1)
         tracks = tracks_response.get("tracks", [])
 
         for track in tracks:

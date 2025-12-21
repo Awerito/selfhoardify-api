@@ -1,4 +1,7 @@
+from datetime import datetime, timedelta
+
 from app.database import MongoDBConnectionManager
+from app.services.rate_limiter import spotify_rate_limiter
 from app.services.spotify import (
     get_auth_manager,
     get_spotify_client,
@@ -10,26 +13,64 @@ from app.services.spotify import (
     NOW_PLAYING_SVG_CACHE_KEY,
 )
 from app.services.svg import generate_now_playing_svg
-from app.services.plays import upsert_play, upsert_plays, sync_missing_artists, sync_missing_album
+from app.services.plays import (
+    upsert_play,
+    upsert_plays,
+    sync_missing_artists,
+    sync_missing_album,
+)
 from app.utils.logger import logger
+
+# Will be set by register_jobs
+_scheduler = None
+
+
+def set_scheduler(scheduler) -> None:
+    """Set the scheduler instance for dynamic rescheduling."""
+    global _scheduler
+    _scheduler = scheduler
+
+
+def _schedule_next_poll() -> None:
+    """Schedule next poll based on current rate limit usage."""
+    if _scheduler is None:
+        return
+
+    next_interval = spotify_rate_limiter.get_next_interval()
+    next_run = datetime.now() + timedelta(seconds=next_interval)
+
+    try:
+        _scheduler.add_job(
+            poll_current_playback,
+            trigger="date",
+            run_date=next_run,
+            id="poll_current_playback",
+            replace_existing=True,
+        )
+        logger.debug(f"Next poll in {next_interval}s")
+    except Exception as e:
+        logger.warning(f"Failed to schedule next poll: {e}")
 
 
 async def poll_current_playback():
-    """Poll current playback every 30 seconds, save to DB and cache to Redis."""
+    """Poll current playback dynamically, save to DB and cache to Redis."""
     auth_manager = get_auth_manager()
     token_info = auth_manager.get_cached_token()
     if not token_info:
+        _schedule_next_poll()
         return {"status": "skipped", "reason": "not authenticated"}
 
     sp = get_spotify_client()
     redis_client = get_redis_client()
 
     data = get_current_playback(sp)
+    spotify_rate_limiter.record_requests(1)
 
     if not data:
         # Nothing playing - delete cache, let it expire to "Offline"
         cache_now_playing(redis_client, None)
         redis_client.delete(NOW_PLAYING_SVG_CACHE_KEY)
+        _schedule_next_poll()
         return {"status": "ok", "playing": False}
 
     now_playing = data["now_playing"]
@@ -58,6 +99,7 @@ async def poll_current_playback():
             await sync_missing_artists(db, sp, play.get("artist_ids", []))
             await sync_missing_album(db, sp, play.get("album_id"))
 
+    _schedule_next_poll()
     return {"status": "ok", "playing": True, "inserted": is_new}
 
 
@@ -70,6 +112,7 @@ async def poll_recently_played():
 
     sp = get_spotify_client()
     plays = get_recently_played(sp, limit=50)
+    spotify_rate_limiter.record_requests(1)
 
     if not plays:
         return {"status": "ok", "plays": 0}
