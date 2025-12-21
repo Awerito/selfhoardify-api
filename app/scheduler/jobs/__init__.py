@@ -2,7 +2,7 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-from .spotify import poll_current_playback, poll_recently_played, sync_artists
+from .spotify import poll_current_playback, poll_recently_played
 
 
 def register_jobs(scheduler: AsyncIOScheduler) -> None:
@@ -20,9 +20,3 @@ def register_jobs(scheduler: AsyncIOScheduler) -> None:
         replace_existing=True,
     )
 
-    scheduler.add_job(
-        sync_artists,
-        CronTrigger.from_crontab("0 6,18 * * *"),  # 6 AM and 6 PM
-        id="sync_artists",
-        replace_existing=True,
-    )

@@ -4,15 +4,18 @@ from fastapi.responses import JSONResponse, Response
 from app.auth import User, current_active_user
 from app.services.spotify import (
     get_auth_manager,
+    get_spotify_client,
     get_redis_client,
     get_cached_now_playing,
+    get_cached_now_playing_svg,
 )
-from app.services.svg import generate_now_playing_svg, generate_not_playing_svg
+from app.services.svg import generate_not_playing_svg
+from app.database import MongoDBConnectionManager
 from app.scheduler.jobs.spotify import (
     poll_current_playback,
     poll_recently_played,
-    sync_artists,
 )
+from app.services.plays import sync_all_missing_metadata
 
 router = APIRouter(prefix="/spotify", tags=["Spotify"])
 
@@ -50,17 +53,10 @@ async def now_playing():
 async def now_playing_svg():
     """Get an embeddable SVG widget showing current track from cache."""
     redis_client = get_redis_client()
-    data = get_cached_now_playing(redis_client)
+    svg = get_cached_now_playing_svg(redis_client)
 
-    if not data:
+    if not svg:
         svg = generate_not_playing_svg()
-    else:
-        svg = generate_now_playing_svg(
-            title=data["title"],
-            artist=data["artist"],
-            album_art_url=data["album_art"],
-            is_playing=data["is_playing"],
-        )
 
     return Response(
         content=svg,
@@ -87,8 +83,17 @@ async def manual_poll_recently_played(_: User = Depends(current_active_user)):
     return result
 
 
-@router.post("/poll/sync-artists", summary="Manually sync artists")
-async def manual_sync_artists(_: User = Depends(current_active_user)):
-    """Manually trigger artist sync."""
-    result = await sync_artists()
-    return result
+@router.post("/sync-metadata", summary="Sync all missing metadata")
+async def manual_sync_metadata(_: User = Depends(current_active_user)):
+    """Scan all plays and sync any missing artists/albums from Spotify."""
+    auth_manager = get_auth_manager()
+    token_info = auth_manager.get_cached_token()
+    if not token_info:
+        return {"status": "error", "reason": "not authenticated with Spotify"}
+
+    sp = get_spotify_client()
+
+    async with MongoDBConnectionManager() as db:
+        result = await sync_all_missing_metadata(db, sp)
+
+    return {"status": "ok", **result}

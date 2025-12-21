@@ -33,7 +33,6 @@ Protected endpoints require `Authorization: Bearer <token>` header.
 |-----|----------|
 | `poll_current_playback` | Every 30 sec |
 | `poll_recently_played` | Every hour |
-| `sync_artists` | 6 AM & 6 PM |
 
 ---
 
@@ -41,5 +40,6 @@ Protected endpoints require `Authorization: Bearer <token>` header.
 
 - **plays**: Track plays with device/context info
 - **artists**: Artist metadata with genres
+- **albums**: Album metadata
 
 </details>

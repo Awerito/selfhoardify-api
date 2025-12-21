@@ -9,6 +9,7 @@ from spotipy.oauth2 import SpotifyOAuth
 from app.config import RedisConfig, SpotifyConfig
 
 NOW_PLAYING_CACHE_KEY = "now_playing"
+NOW_PLAYING_SVG_CACHE_KEY = "now_playing_svg"
 
 
 class RedisCacheHandler(CacheHandler):
@@ -59,6 +60,7 @@ def get_recently_played(sp: spotipy.Spotify, limit: int = 50) -> list[dict]:
                 "artists": [a["name"] for a in track["artists"]],
                 "artist_ids": [a["id"] for a in track["artists"]],
                 "album": track["album"]["name"],
+                "album_id": track["album"]["id"],
                 "album_art": (
                     track["album"]["images"][0]["url"]
                     if track["album"]["images"]
@@ -96,6 +98,7 @@ def get_current_playback(sp: spotipy.Spotify) -> dict | None:
             "artists": [a["name"] for a in track["artists"]],
             "artist_ids": [a["id"] for a in track["artists"]],
             "album": track["album"]["name"],
+            "album_id": track["album"]["id"],
             "album_art": (
                 track["album"]["images"][0]["url"]
                 if track["album"]["images"]
@@ -127,12 +130,14 @@ def get_current_playback(sp: spotipy.Spotify) -> dict | None:
     }
 
 
-def cache_now_playing(redis_client: redis.Redis, data: dict | None) -> None:
-    """Cache now playing data to Redis."""
+def cache_now_playing(
+    redis_client: redis.Redis, data: dict | None, ttl_seconds: int = 120
+) -> None:
+    """Cache now playing data to Redis with TTL based on remaining song time."""
     if data is None:
         redis_client.delete(NOW_PLAYING_CACHE_KEY)
     else:
-        redis_client.set(NOW_PLAYING_CACHE_KEY, json.dumps(data), ex=120)
+        redis_client.set(NOW_PLAYING_CACHE_KEY, json.dumps(data), ex=ttl_seconds)
 
 
 def get_cached_now_playing(redis_client: redis.Redis) -> dict | None:
@@ -140,4 +145,19 @@ def get_cached_now_playing(redis_client: redis.Redis) -> dict | None:
     data = redis_client.get(NOW_PLAYING_CACHE_KEY)
     if data:
         return json.loads(data)
+    return None
+
+
+def cache_now_playing_svg(
+    redis_client: redis.Redis, svg: str, ttl_seconds: int = 120
+) -> None:
+    """Cache the now playing SVG to Redis with TTL based on remaining song time."""
+    redis_client.set(NOW_PLAYING_SVG_CACHE_KEY, svg, ex=ttl_seconds)
+
+
+def get_cached_now_playing_svg(redis_client: redis.Redis) -> str | None:
+    """Get cached now playing SVG from Redis."""
+    data = redis_client.get(NOW_PLAYING_SVG_CACHE_KEY)
+    if data:
+        return data.decode("utf-8") if isinstance(data, bytes) else data
     return None

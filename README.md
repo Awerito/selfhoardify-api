@@ -113,7 +113,7 @@ SPOTIPY_REDIRECT_URI=http://localhost:8000/spotify/callback
 | GET | `/spotify/now-playing.svg` | Embeddable SVG widget |
 | POST | `/spotify/poll/current-playback` | Manual poll trigger (auth required) |
 | POST | `/spotify/poll/recently-played` | Manual poll trigger (auth required) |
-| POST | `/spotify/poll/sync-artists` | Manual artist sync (auth required) |
+| POST | `/spotify/sync-metadata` | Sync all missing artists/albums (auth required) |
 
 ### Auth
 
@@ -127,9 +127,8 @@ SPOTIPY_REDIRECT_URI=http://localhost:8000/spotify/callback
 
 | Job | Schedule | Description |
 |-----|----------|-------------|
-| `poll_current_playback` | Every 30 sec | Polls current playback, saves to DB, caches to Redis |
+| `poll_current_playback` | Every 30 sec | Polls current playback, saves to DB, caches to Redis, syncs artists/albums |
 | `poll_recently_played` | Every hour | Fetches last 50 tracks with exact timestamps |
-| `sync_artists` | 6 AM & 6 PM | Syncs artist genres for new artists |
 
 ---
 
@@ -144,6 +143,7 @@ SPOTIPY_REDIRECT_URI=http://localhost:8000/spotify/callback
   "artists": ["The Offspring"],
   "artist_ids": ["5LfGQac0EIXyAN8aUwmNAQ"],
   "album": "Americana",
+  "album_id": "4Hjqdhj5rh816i1dfcUEaM",
   "album_art": "https://i.scdn.co/image/...",
   "duration_ms": 180160,
   "played_at": "2025-12-21T00:36:49.833Z",
@@ -163,6 +163,22 @@ SPOTIPY_REDIRECT_URI=http://localhost:8000/spotify/callback
   "genres": ["punk rock", "alternative rock"],
   "popularity": 75,
   "image": "https://i.scdn.co/image/..."
+}
+```
+
+### `albums`
+
+```json
+{
+  "album_id": "4Hjqdhj5rh816i1dfcUEaM",
+  "name": "Americana",
+  "album_type": "album",
+  "total_tracks": 14,
+  "release_date": "1998-11-17",
+  "label": "Round Hill Records",
+  "popularity": 75,
+  "image": "https://i.scdn.co/image/...",
+  "artist_ids": ["5LfGQac0EIXyAN8aUwmNAQ"]
 }
 ```
 

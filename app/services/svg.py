@@ -74,7 +74,7 @@ def generate_now_playing_svg(
 
 
 def generate_not_playing_svg() -> str:
-    """SVG for when no data is available."""
+    """SVG for when nothing is playing."""
     return """<svg xmlns="http://www.w3.org/2000/svg" width="400" height="110" viewBox="0 0 400 110">
   <rect width="400" height="110" rx="5" fill="#1a1a2e"/>
   <rect x="0" y="0" width="400" height="22" rx="5" fill="#16213e"/>
