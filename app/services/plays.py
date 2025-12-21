@@ -42,6 +42,11 @@ async def upsert_play(db: AsyncIOMotorDatabase, play: dict) -> bool:
             "album_id": play.get("album_id"),
             "album_art": play.get("album_art"),
             "duration_ms": play["duration_ms"],
+            "explicit": play.get("explicit"),
+            "popularity": play.get("popularity"),
+            "disc_number": play.get("disc_number"),
+            "track_number": play.get("track_number"),
+            "isrc": play.get("isrc"),
             "played_at": played_at,
             "played_at_rounded": played_at_rounded,
         },
@@ -93,8 +98,14 @@ async def upsert_plays(db: AsyncIOMotorDatabase, plays: list[dict]) -> dict:
                 "artists": play["artists"],
                 "artist_ids": play["artist_ids"],
                 "album": play["album"],
+                "album_id": play.get("album_id"),
                 "album_art": play.get("album_art"),
                 "duration_ms": play["duration_ms"],
+                "explicit": play.get("explicit"),
+                "popularity": play.get("popularity"),
+                "disc_number": play.get("disc_number"),
+                "track_number": play.get("track_number"),
+                "isrc": play.get("isrc"),
                 "played_at": played_at,
                 "played_at_rounded": played_at_rounded,
             },
@@ -326,3 +337,60 @@ async def sync_all_missing_metadata(
         )
 
     return {"artists_synced": artists_synced, "albums_synced": albums_synced}
+
+
+async def backfill_plays(db: AsyncIOMotorDatabase, sp: spotipy.Spotify) -> dict:
+    """
+    Backfill existing plays with missing track data (album_id, isrc, etc.).
+    Fetches track info from Spotify and updates plays.
+    """
+    # Find plays missing key fields
+    missing_cursor = db.plays.aggregate([
+        {
+            "$match": {
+                "$or": [
+                    {"album_id": {"$exists": False}},
+                    {"isrc": {"$exists": False}},
+                ]
+            }
+        },
+        {"$group": {"_id": "$track_id"}},
+    ])
+    missing_track_ids = [doc["_id"] async for doc in missing_cursor]
+
+    if not missing_track_ids:
+        return {"tracks_fetched": 0, "plays_updated": 0}
+
+    tracks_fetched = 0
+    plays_updated = 0
+    track_data = {}
+
+    # Fetch tracks in batches of 50
+    for i in range(0, len(missing_track_ids), 50):
+        batch = missing_track_ids[i : i + 50]
+        tracks_response = sp.tracks(batch)
+        tracks = tracks_response.get("tracks", [])
+
+        for track in tracks:
+            if track:
+                track_data[track["id"]] = {
+                    "album_id": track["album"]["id"],
+                    "explicit": track.get("explicit"),
+                    "popularity": track.get("popularity"),
+                    "disc_number": track.get("disc_number"),
+                    "track_number": track.get("track_number"),
+                    "isrc": track.get("external_ids", {}).get("isrc"),
+                }
+                tracks_fetched += 1
+
+    # Update plays with fetched data
+    for track_id, data in track_data.items():
+        result = await db.plays.update_many(
+            {"track_id": track_id},
+            {"$set": data},
+        )
+        plays_updated += result.modified_count
+
+    logger.info(f"backfill_plays: {tracks_fetched} tracks, {plays_updated} plays updated")
+
+    return {"tracks_fetched": tracks_fetched, "plays_updated": plays_updated}

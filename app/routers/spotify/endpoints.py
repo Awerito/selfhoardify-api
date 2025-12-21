@@ -15,7 +15,7 @@ from app.scheduler.jobs.spotify import (
     poll_current_playback,
     poll_recently_played,
 )
-from app.services.plays import sync_all_missing_metadata
+from app.services.plays import sync_all_missing_metadata, backfill_plays
 
 router = APIRouter(prefix="/spotify", tags=["Spotify"])
 
@@ -85,7 +85,9 @@ async def manual_poll_recently_played(_: User = Depends(current_active_user)):
 
 @router.post("/sync-metadata", summary="Sync all missing metadata")
 async def manual_sync_metadata(_: User = Depends(current_active_user)):
-    """Scan all plays and sync any missing artists/albums from Spotify."""
+    """
+    Backfill plays with missing track data and sync missing artists/albums.
+    """
     auth_manager = get_auth_manager()
     token_info = auth_manager.get_cached_token()
     if not token_info:
@@ -94,6 +96,14 @@ async def manual_sync_metadata(_: User = Depends(current_active_user)):
     sp = get_spotify_client()
 
     async with MongoDBConnectionManager() as db:
-        result = await sync_all_missing_metadata(db, sp)
+        # First backfill plays with missing track data
+        backfill_result = await backfill_plays(db, sp)
 
-    return {"status": "ok", **result}
+        # Then sync missing artists/albums
+        sync_result = await sync_all_missing_metadata(db, sp)
+
+    return {
+        "status": "ok",
+        **backfill_result,
+        **sync_result,
+    }

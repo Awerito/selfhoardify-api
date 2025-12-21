@@ -67,6 +67,11 @@ def get_recently_played(sp: spotipy.Spotify, limit: int = 50) -> list[dict]:
                     else None
                 ),
                 "duration_ms": track["duration_ms"],
+                "explicit": track.get("explicit"),
+                "popularity": track.get("popularity"),
+                "disc_number": track.get("disc_number"),
+                "track_number": track.get("track_number"),
+                "isrc": track.get("external_ids", {}).get("isrc"),
                 "played_at": item["played_at"],
             }
         )
@@ -105,6 +110,11 @@ def get_current_playback(sp: spotipy.Spotify) -> dict | None:
                 else None
             ),
             "duration_ms": track["duration_ms"],
+            "explicit": track.get("explicit"),
+            "popularity": track.get("popularity"),
+            "disc_number": track.get("disc_number"),
+            "track_number": track.get("track_number"),
+            "isrc": track.get("external_ids", {}).get("isrc"),
             "played_at": played_at,
             "played_at_rounded": played_at_rounded,
             "device_name": device["name"] if device else None,
