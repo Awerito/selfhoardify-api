@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta
 
 from app.database import MongoDBConnectionManager
@@ -47,6 +48,7 @@ def _schedule_next_poll() -> None:
             run_date=next_run,
             id="poll_current_playback",
             replace_existing=True,
+            misfire_grace_time=60,
         )
         logger.info(
             f"Next poll in {next_interval}s "
@@ -68,7 +70,7 @@ async def poll_current_playback():
     sp = get_spotify_client()
     redis_client = get_redis_client()
 
-    data = get_current_playback(sp)
+    data = await asyncio.to_thread(get_current_playback, sp)
     spotify_rate_limiter.record_requests(1)
 
     if not data:
@@ -120,7 +122,7 @@ async def poll_recently_played():
         return {"status": "skipped", "reason": "not authenticated"}
 
     sp = get_spotify_client()
-    plays = get_recently_played(sp, limit=50)
+    plays = await asyncio.to_thread(get_recently_played, sp, 50)
     spotify_rate_limiter.record_requests(1)
 
     if not plays:

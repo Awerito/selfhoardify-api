@@ -17,6 +17,7 @@ def register_jobs(scheduler: AsyncIOScheduler) -> None:
         run_date=datetime.now() + timedelta(seconds=1),
         id="poll_current_playback",
         replace_existing=True,
+        misfire_grace_time=60,
     )
 
     scheduler.add_job(
