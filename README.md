@@ -127,14 +127,16 @@ SPOTIPY_REDIRECT_URI=http://localhost:8000/spotify/callback
 
 | Job | Schedule | Description |
 |-----|----------|-------------|
-| `poll_current_playback` | Every 30 sec | Polls current playback, saves to DB, caches to Redis, syncs artists/albums |
-| `poll_recently_played` | Every hour | Fetches last 50 tracks with exact timestamps |
+| `poll_current_playback` | 1-2 sec (adaptive) | Polls current playback, detects track changes, updates listen counts |
+| `poll_recently_played` | Every hour | Backfills plays log with exact timestamps |
 
 ---
 
 ## Collections
 
-### `plays`
+### `tracks`
+
+Unique tracks with metadata and listen counts.
 
 ```json
 {
@@ -146,16 +148,25 @@ SPOTIPY_REDIRECT_URI=http://localhost:8000/spotify/callback
   "album_id": "4Hjqdhj5rh816i1dfcUEaM",
   "album_art": "https://i.scdn.co/image/...",
   "duration_ms": 180160,
-  "explicit": false,
-  "popularity": 78,
-  "disc_number": 1,
-  "track_number": 11,
-  "isrc": "USSM19800404",
-  "played_at": "2025-12-21T00:36:49.833Z",
+  "listen_count": 42,
+  "first_listened": "2025-12-01T10:30:00.000Z",
+  "last_listened": "2025-12-25T15:45:00.000Z"
+}
+```
+
+### `plays`
+
+Log of each listen event (timestamps rounded to minute).
+
+```json
+{
+  "track_id": "4EchqUKQ3qAQuRNKmeIpnf",
+  "listened_at": "2025-12-21T00:36:00.000Z",
   "device_name": "pop-os",
   "device_type": "Computer",
   "context_type": "collection",
-  "context_uri": "spotify:user:xxx:collection"
+  "context_uri": "spotify:user:xxx:collection",
+  "shuffle_state": true
 }
 ```
 

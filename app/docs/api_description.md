@@ -31,14 +31,15 @@ Protected endpoints require `Authorization: Bearer <token>` header.
 
 | Job | Schedule |
 |-----|----------|
-| `poll_current_playback` | Every 30 sec |
+| `poll_current_playback` | 1-2 sec (adaptive) |
 | `poll_recently_played` | Every hour |
 
 ---
 
 ## Collections
 
-- **plays**: Track plays with device/context info
+- **tracks**: Unique tracks with metadata and `listen_count`
+- **plays**: Listen events log with device/context info
 - **artists**: Artist metadata with genres
 - **albums**: Album metadata
 
