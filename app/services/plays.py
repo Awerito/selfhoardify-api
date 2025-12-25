@@ -53,12 +53,9 @@ async def upsert_track(
         "$setOnInsert": {
             "track_id": track["track_id"],
             "first_listened": now,
-            "listen_count": 0,
         },
+        "$inc": {"listen_count": 1 if increment_count else 0},
     }
-
-    if increment_count:
-        update_doc["$inc"] = {"listen_count": 1}
 
     result = await db.tracks.update_one(filter_doc, update_doc, upsert=True)
     return result.upserted_id is not None

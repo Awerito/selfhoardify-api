@@ -16,7 +16,6 @@ from app.services.svg import generate_now_playing_svg
 from app.services.plays import (
     upsert_track,
     insert_play,
-    insert_plays_bulk,
     sync_missing_artists,
     sync_missing_album,
 )
@@ -156,18 +155,23 @@ async def poll_recently_played():
     plays = await asyncio.to_thread(get_recently_played, sp, 50)
 
     if not plays:
-        return {"status": "ok", "plays": 0}
+        return {"status": "ok", "inserted": 0, "skipped": 0}
+
+    inserted = 0
+    skipped = 0
 
     async with MongoDBConnectionManager() as db:
-        # Insert plays to log (skips duplicates)
-        result = await insert_plays_bulk(db, plays)
-
-        # Upsert tracks without incrementing count (backfill only)
         for play in plays:
-            await upsert_track(db, play, increment_count=False)
+            # Insert play - returns True if new, False if duplicate
+            was_new = await insert_play(db, play)
+            if was_new:
+                inserted += 1
+                # Only increment listen_count for plays not seen before
+                await upsert_track(db, play, increment_count=True)
+            else:
+                skipped += 1
+                # Still upsert track metadata but don't increment count
+                await upsert_track(db, play, increment_count=False)
 
-    logger.info(
-        f"poll_recently_played: {result['inserted']} inserted, "
-        f"{result['skipped']} skipped"
-    )
-    return {"status": "ok", **result}
+    logger.info(f"poll_recently_played: {inserted} inserted, {skipped} skipped")
+    return {"status": "ok", "inserted": inserted, "skipped": skipped}

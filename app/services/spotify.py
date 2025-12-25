@@ -53,6 +53,13 @@ def get_recently_played(sp: spotipy.Spotify, limit: int = 50) -> list[dict]:
     plays = []
     for item in response.get("items", []):
         track = item["track"]
+        # Parse and round played_at to the minute for deduplication
+        played_at_str = item["played_at"]
+        if played_at_str.endswith("Z"):
+            played_at_str = played_at_str[:-1] + "+00:00"
+        played_at = datetime.fromisoformat(played_at_str)
+        played_at_rounded = played_at.replace(second=0, microsecond=0)
+
         plays.append(
             {
                 "track_id": track["id"],
@@ -72,7 +79,7 @@ def get_recently_played(sp: spotipy.Spotify, limit: int = 50) -> list[dict]:
                 "disc_number": track.get("disc_number"),
                 "track_number": track.get("track_number"),
                 "isrc": track.get("external_ids", {}).get("isrc"),
-                "played_at": item["played_at"],
+                "played_at": played_at_rounded,
             }
         )
     return plays
@@ -115,8 +122,7 @@ def get_current_playback(sp: spotipy.Spotify) -> dict | None:
             "disc_number": track.get("disc_number"),
             "track_number": track.get("track_number"),
             "isrc": track.get("external_ids", {}).get("isrc"),
-            "played_at": played_at,
-            "played_at_rounded": played_at_rounded,
+            "played_at": played_at_rounded,
             "device_name": device["name"] if device else None,
             "device_type": device["type"] if device else None,
             "context_type": context["type"] if context else None,
