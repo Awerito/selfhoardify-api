@@ -13,6 +13,7 @@ from app.services.plays import ensure_indexes
 from app.routers.healthcheck.endpoints import router as healthcheck_router
 from app.routers.auth.endpoints import router as auth_router
 from app.routers.spotify.endpoints import router as spotify_router
+from app.routers.dashboard.endpoints import router as dashboard_router
 
 
 async def on_db_ready(db):
@@ -58,3 +59,4 @@ app.add_middleware(
 app.include_router(healthcheck_router)
 app.include_router(auth_router)
 app.include_router(spotify_router)
+app.include_router(dashboard_router)

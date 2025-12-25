@@ -1,5 +1,6 @@
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
+from app.config import ENV
 from app.utils.logger import logger
 from app.scheduler.jobs import register_jobs
 
@@ -8,6 +9,10 @@ scheduler = AsyncIOScheduler()
 
 
 def start_scheduler() -> None:
+    if ENV == "dev":
+        logger.info("Scheduler disabled in dev mode")
+        return
+
     try:
         register_jobs(scheduler)
         scheduler.start()
