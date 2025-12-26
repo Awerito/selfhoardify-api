@@ -89,7 +89,7 @@ def generate_not_playing_svg() -> str:
 def _get_intensity_color(play_count: int) -> str:
     """Get color based on play count (GitHub contribution graph style)."""
     if play_count == 0:
-        return "#161b22"  # Empty
+        return "#1f2937"  # Empty (matches border-gray-800)
     elif play_count == 1:
         return "#0e4429"  # Low
     elif play_count <= 3:
@@ -149,7 +149,9 @@ def generate_listening_grid_svg(
 
     svg_parts = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
-        f'  <rect width="{width}" height="{height}" rx="6" fill="#0d1117"/>',
+        # Background with border (matches Tailwind bg-gray-900 + border-gray-800)
+        f'  <rect width="{width}" height="{height}" rx="12" fill="#111827"/>',
+        f'  <rect x="1" y="1" width="{width - 2}" height="{height - 2}" rx="11" fill="#111827" stroke="#1f2937" stroke-width="1"/>',
         # Title
         f'  <text x="{padding}" y="{padding + 14}" fill="#e6edf3" font-family="{font}" font-size="12" font-weight="600">Listening Activity</text>',
         f'  <text x="{width - padding}" y="{padding + 14}" fill="#8b949e" font-family="{font}" font-size="10" text-anchor="end">{total_plays} plays</text>',
@@ -236,11 +238,11 @@ def generate_listening_grid_svg(
                         f'rx="2" fill="{color}"><title>{tooltip}</title></rect>'
                     )
             else:
-                # Empty cell
+                # Empty cell (slightly lighter than background)
                 tooltip = f"{day} {hour:02d}:00 - No plays"
                 svg_parts.append(
                     f'  <rect x="{x}" y="{y}" width="{cell_size}" height="{cell_size}" '
-                    f'rx="2" fill="#161b22"><title>{tooltip}</title></rect>'
+                    f'rx="2" fill="#1f2937"><title>{tooltip}</title></rect>'
                 )
 
     svg_parts.append("</svg>")

@@ -17,6 +17,24 @@
         </div>
     </div>
 
+    <!-- Listening Grid (7 days) -->
+    <div class="relative">
+        <div id="grid-loader" class="absolute inset-0 flex items-center justify-center bg-gray-900 rounded-xl" style="min-height: 140px;">
+            <svg class="animate-spin h-8 w-8 text-spotify" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+        </div>
+        <object
+            data="/dashboard/grid"
+            type="image/svg+xml"
+            class="w-full rounded-xl opacity-0 transition-opacity duration-300"
+            onload="this.classList.remove('opacity-0'); document.getElementById('grid-loader').style.display='none';"
+        >
+            Listening Activity Grid
+        </object>
+    </div>
+
     <!-- Stats Cards -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div class="bg-gray-900 rounded-xl p-5 border border-gray-800">
@@ -36,6 +54,37 @@
             <p class="text-3xl font-bold text-white mt-1">{{ stats.unique_artists }}</p>
         </div>
     </div>
+
+    <!-- Listening Hours (histogram: plays per hour) -->
+    {% if stats.hours %}
+    {% set max_count = stats.max_hour_count or 1 %}
+    {% set max_bar_px = 80 %}
+    <div class="bg-gray-900 rounded-xl p-6 border border-gray-800">
+        <h2 class="text-xl font-semibold text-white mb-4">Listening by Hour</h2>
+        <!-- Bars -->
+        <div class="flex items-end gap-0.5" style="height: 80px;">
+            {% for hour in range(24) %}
+            {% set count = stats.hours.get(hour | string, 0) %}
+            {% set bar_px = ((count / max_count) * max_bar_px) | int %}
+            <div
+                class="flex-1 bg-spotify rounded-sm {% if count == 0 %}opacity-10{% endif %}"
+                style="height: {{ bar_px if bar_px > 2 else 2 }}px;"
+                title="{{ hour }}:00 - {{ count }} plays"
+            ></div>
+            {% endfor %}
+        </div>
+        <!-- Labels -->
+        <div class="flex gap-0.5 mt-1">
+            {% for hour in range(24) %}
+            <div class="flex-1 text-center">
+                {% if hour % 6 == 0 %}
+                <span class="text-xs text-gray-500">{{ hour }}</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
 
     <!-- Two columns: Top Tracks and Top Artists -->
     <div class="grid md:grid-cols-2 gap-6">
@@ -77,40 +126,10 @@
         </div>
     </div>
 
-    <!-- Listening Hours (histogram: plays per hour) -->
-    {% if stats.hours %}
-    {% set max_count = stats.max_hour_count or 1 %}
-    {% set max_bar_px = 80 %}
-    <div class="bg-gray-900 rounded-xl p-6 border border-gray-800">
-        <h2 class="text-xl font-semibold text-white mb-4">Listening by Hour</h2>
-        <!-- Bars -->
-        <div class="flex items-end gap-0.5" style="height: 80px;">
-            {% for hour in range(24) %}
-            {% set count = stats.hours.get(hour | string, 0) %}
-            {% set bar_px = ((count / max_count) * max_bar_px) | int %}
-            <div
-                class="flex-1 bg-spotify rounded-sm {% if count == 0 %}opacity-10{% endif %}"
-                style="height: {{ bar_px if bar_px > 2 else 2 }}px;"
-                title="{{ hour }}:00 - {{ count }} plays"
-            ></div>
-            {% endfor %}
-        </div>
-        <!-- Labels -->
-        <div class="flex gap-0.5 mt-1">
-            {% for hour in range(24) %}
-            <div class="flex-1 text-center">
-                {% if hour % 6 == 0 %}
-                <span class="text-xs text-gray-500">{{ hour }}</span>
-                {% endif %}
-            </div>
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
-
     <!-- Footer -->
     <p class="text-center text-gray-600 text-sm">
-        Hoardify - Your personal Spotify hoarding API
+        Hoardify - Your personal Spotify hoarding API |
+        <a href="https://github.com/Awerito" class="text-gray-500 hover:text-spotify transition-colors">GitHub</a>
     </p>
 </div>
 {% endblock %}
