@@ -2,6 +2,7 @@ import asyncio
 from datetime import datetime, timedelta
 
 from app.database import MongoDBConnectionManager
+from app.services.cache import ensure_album_art_cached
 from app.services.spotify import (
     get_auth_manager,
     get_spotify_client,
@@ -104,6 +105,9 @@ async def poll_current_playback():
         is_playing=now_playing["is_playing"],
     )
     cache_now_playing_svg(redis_client, svg, ttl_seconds)
+
+    # Pre-cache album art for dashboard grid
+    ensure_album_art_cached(redis_client, now_playing.get("album_art"))
 
     # Check if track changed
     last_track_id = redis_client.get(LAST_TRACK_KEY)

@@ -1,22 +1,11 @@
-import base64
-import urllib.request
 from datetime import datetime
 
 from app.services.cache import (
     cache_album_art,
+    fetch_image_as_base64,
     get_cached_album_art,
     get_redis_client,
 )
-
-
-def fetch_image_as_base64(url: str) -> str | None:
-    """Download an image and convert it to base64."""
-    try:
-        with urllib.request.urlopen(url, timeout=5) as response:
-            data = response.read()
-            return base64.b64encode(data).decode("utf-8")
-    except Exception:
-        return None
 
 
 def generate_now_playing_svg(
