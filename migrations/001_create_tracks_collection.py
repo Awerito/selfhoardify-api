@@ -20,7 +20,7 @@ load_dotenv()
 
 async def migrate():
     client = AsyncIOMotorClient(os.getenv("MONGO_URI"))
-    db = client.selfhoardify
+    db = client.hoardify
 
     # Check if tracks already exists
     existing = await db.list_collection_names()

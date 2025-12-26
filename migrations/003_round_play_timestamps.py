@@ -17,7 +17,7 @@ load_dotenv()
 
 async def migrate():
     client = AsyncIOMotorClient(os.getenv("MONGO_URI"))
-    db = client.selfhoardify
+    db = client.hoardify
 
     print("Migration 003: Round play timestamps to the minute")
     print("=" * 60)

@@ -1,6 +1,6 @@
-# Selfhoardify API
+# Hoardify API
 
-[![selfhoardify.grye.org](https://img.shields.io/badge/selfhoardify.grye.org-blue?style=flat)](https://selfhoardify.grye.org)
+[![hoardify.grye.org](https://img.shields.io/badge/hoardify.grye.org-blue?style=flat)](https://hoardify.grye.org)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow?style=flat&logo=buy-me-a-coffee)](https://buymeacoffee.com/awerito)
 
 Personal Spotify listening history hoarding API. Tracks what you listen to and stores it for analytics.
@@ -17,8 +17,8 @@ Personal Spotify listening history hoarding API. Tracks what you listen to and s
 ## Quickstart
 
 ```bash
-git clone https://github.com/Awerito/selfhoardify-api.git
-cd selfhoardify-api
+git clone https://github.com/Awerito/hoardify-api.git
+cd hoardify-api
 python -m venv env && source env/bin/activate
 pip install -r requirements.txt
 cp sample.env .env
@@ -203,12 +203,12 @@ Log of each listen event (timestamps rounded to minute).
 ## Docker
 
 ```bash
-docker build -t selfhoardify-api .
-docker run --rm --env-file .env -p 8000:8000 selfhoardify-api
+docker build -t hoardify-api .
+docker run --rm --env-file .env -p 8000:8000 hoardify-api
 ```
 
 ---
 
 ## License
 
-[MIT](https://github.com/Awerito/selfhoardify-api/blob/master/LICENSE)
+[MIT](https://github.com/Awerito/hoardify-api/blob/master/LICENSE)
