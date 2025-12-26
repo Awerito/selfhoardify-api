@@ -86,12 +86,27 @@ def generate_not_playing_svg() -> str:
 </svg>"""
 
 
+def _get_intensity_color(play_count: int) -> str:
+    """Get color based on play count (GitHub contribution graph style)."""
+    if play_count == 0:
+        return "#161b22"  # Empty
+    elif play_count == 1:
+        return "#0e4429"  # Low
+    elif play_count <= 3:
+        return "#006d32"  # Medium-low
+    elif play_count <= 5:
+        return "#26a641"  # Medium-high
+    else:
+        return "#39d353"  # High
+
+
 def generate_listening_grid_svg(
     plays_by_day_hour: dict[str, dict[int, dict]],
     cell_size: int = 12,
     gap: int = 2,
+    with_images: bool = True,
 ) -> str:
-    """Generate a GitHub-style listening grid with album art.
+    """Generate a GitHub-style listening grid.
 
     Args:
         plays_by_day_hour: Dict mapping date string (YYYY-MM-DD) to
@@ -99,9 +114,9 @@ def generate_listening_grid_svg(
                           Dates/hours should already be in local timezone.
         cell_size: Size of each cell in pixels.
         gap: Gap between cells.
+        with_images: If True, show album art. If False, use color intensity.
 
     Layout: Rows = days (oldest at top), Columns = 24 hours
-    Each cell shows album art of last track played in that hour.
     """
     if not plays_by_day_hour:
         return generate_empty_grid_svg("No listening data")
@@ -148,8 +163,8 @@ def generate_listening_grid_svg(
             f'  <text x="{x}" y="{y}" fill="#8b949e" font-family="{font}" font-size="9" text-anchor="middle">{hour}h</text>'
         )
 
-    # Redis client for album art cache
-    redis_client = get_redis_client()
+    # Redis client for album art cache (only if needed)
+    redis_client = get_redis_client() if with_images else None
 
     # Grid
     grid_start_y = title_height + hour_label_height + padding
@@ -185,28 +200,40 @@ def generate_listening_grid_svg(
                     f"{day} {hour:02d}:00\n{track_name_escaped}\n({play_count} plays)"
                 )
 
-                # Try to get album art (Redis cache with 7 day TTL)
-                album_art_url = play.get("album_art")
-                album_art_b64 = None
+                if with_images:
+                    # Try to get album art
+                    album_art_url = play.get("album_art")
+                    album_art_b64 = None
 
-                if album_art_url:
-                    album_art_b64 = get_cached_album_art(redis_client, album_art_url)
-                    if not album_art_b64:
-                        album_art_b64 = fetch_image_as_base64(album_art_url)
-                        if album_art_b64:
-                            cache_album_art(redis_client, album_art_url, album_art_b64)
+                    if album_art_url and redis_client:
+                        album_art_b64 = get_cached_album_art(
+                            redis_client, album_art_url
+                        )
+                        if not album_art_b64:
+                            album_art_b64 = fetch_image_as_base64(album_art_url)
+                            if album_art_b64:
+                                cache_album_art(
+                                    redis_client, album_art_url, album_art_b64
+                                )
 
-                if album_art_b64:
-                    svg_parts.append(
-                        f'  <image x="{x}" y="{y}" width="{cell_size}" height="{cell_size}" '
-                        f'href="data:image/jpeg;base64,{album_art_b64}" preserveAspectRatio="xMidYMid slice">'
-                        f"<title>{tooltip}</title></image>"
-                    )
+                    if album_art_b64:
+                        svg_parts.append(
+                            f'  <image x="{x}" y="{y}" width="{cell_size}" height="{cell_size}" '
+                            f'href="data:image/jpeg;base64,{album_art_b64}" preserveAspectRatio="xMidYMid slice">'
+                            f"<title>{tooltip}</title></image>"
+                        )
+                    else:
+                        # Fallback: Spotify green
+                        svg_parts.append(
+                            f'  <rect x="{x}" y="{y}" width="{cell_size}" height="{cell_size}" '
+                            f'rx="2" fill="#1DB954"><title>{tooltip}</title></rect>'
+                        )
                 else:
-                    # Fallback: Spotify green
+                    # Color intensity based on play count
+                    color = _get_intensity_color(play_count)
                     svg_parts.append(
                         f'  <rect x="{x}" y="{y}" width="{cell_size}" height="{cell_size}" '
-                        f'rx="2" fill="#1DB954"><title>{tooltip}</title></rect>'
+                        f'rx="2" fill="{color}"><title>{tooltip}</title></rect>'
                     )
             else:
                 # Empty cell
