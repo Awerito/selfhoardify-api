@@ -2,6 +2,12 @@ import base64
 import urllib.request
 from datetime import datetime
 
+from app.services.cache import (
+    cache_album_art,
+    get_cached_album_art,
+    get_redis_client,
+)
+
 
 def fetch_image_as_base64(url: str) -> str | None:
     """Download an image and convert it to base64."""
@@ -152,8 +158,8 @@ def generate_listening_grid_svg(
             f'  <text x="{x}" y="{y}" fill="#8b949e" font-family="{font}" font-size="9" text-anchor="middle">{hour}h</text>'
         )
 
-    # Cache for album art to avoid re-fetching
-    album_art_cache: dict[str, str | None] = {}
+    # Redis client for album art cache
+    redis_client = get_redis_client()
 
     # Grid
     grid_start_y = title_height + hour_label_height + padding
@@ -187,16 +193,16 @@ def generate_listening_grid_svg(
                 play_count = play.get("play_count", 1)
                 tooltip = f"{day} {hour:02d}:00\n{track_name_escaped}\n({play_count} plays)"
 
-                # Try to get album art
+                # Try to get album art (Redis cache with 7 day TTL)
                 album_art_url = play.get("album_art")
                 album_art_b64 = None
 
                 if album_art_url:
-                    if album_art_url in album_art_cache:
-                        album_art_b64 = album_art_cache[album_art_url]
-                    else:
+                    album_art_b64 = get_cached_album_art(redis_client, album_art_url)
+                    if not album_art_b64:
                         album_art_b64 = fetch_image_as_base64(album_art_url)
-                        album_art_cache[album_art_url] = album_art_b64
+                        if album_art_b64:
+                            cache_album_art(redis_client, album_art_url, album_art_b64)
 
                 if album_art_b64:
                     svg_parts.append(
