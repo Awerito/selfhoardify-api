@@ -161,6 +161,9 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     # Albums collection
     await db.albums.create_index("album_id", unique=True, name="album_id_unique")
 
+    # Favorites collection
+    await db.favorites.create_index("track_id", unique=True, name="track_id_unique")
+
     logger.info("Database indexes ensured")
 
 

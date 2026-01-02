@@ -177,3 +177,46 @@ def get_cached_now_playing_svg(redis_client: redis.Redis) -> str | None:
     if data:
         return data.decode("utf-8") if isinstance(data, bytes) else data
     return None
+
+
+def get_saved_tracks_page(
+    sp: spotipy.Spotify, limit: int = 50, offset: int = 0
+) -> tuple[list[dict], int]:
+    """Fetch a page of saved tracks and transform to our schema.
+
+    Returns:
+        Tuple of (list of tracks, total count in library)
+    """
+    response = sp.current_user_saved_tracks(limit=limit, offset=offset)
+    total = response.get("total", 0)
+    tracks = []
+
+    for item in response.get("items", []):
+        track = item["track"]
+        added_at_str = item["added_at"]
+        if added_at_str.endswith("Z"):
+            added_at_str = added_at_str[:-1] + "+00:00"
+        added_at = datetime.fromisoformat(added_at_str)
+
+        tracks.append(
+            {
+                "track_id": track["id"],
+                "name": track["name"],
+                "artists": [a["name"] for a in track["artists"]],
+                "artist_ids": [a["id"] for a in track["artists"]],
+                "album": track["album"]["name"],
+                "album_id": track["album"]["id"],
+                "album_art": (
+                    track["album"]["images"][0]["url"]
+                    if track["album"]["images"]
+                    else None
+                ),
+                "duration_ms": track["duration_ms"],
+                "explicit": track.get("explicit"),
+                "popularity": track.get("popularity"),
+                "isrc": track.get("external_ids", {}).get("isrc"),
+                "added_at": added_at,
+            }
+        )
+
+    return tracks, total

@@ -77,4 +77,5 @@ class SpotifyConfig:
         "user-read-currently-playing",
         "user-read-playback-state",
         "user-read-recently-played",
+        "user-library-read",
     ]

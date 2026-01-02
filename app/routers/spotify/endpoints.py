@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse, Response
 
@@ -8,6 +10,7 @@ from app.services.spotify import (
     get_redis_client,
     get_cached_now_playing,
     get_cached_now_playing_svg,
+    get_saved_tracks_page,
 )
 from app.services.svg import generate_not_playing_svg
 from app.database import MongoDBConnectionManager
@@ -104,3 +107,59 @@ async def manual_sync_metadata(_: User = Depends(current_active_user)):
 async def rate_limit_stats(_: User = Depends(current_active_user)):
     """Get current Spotify API rate limiter statistics."""
     return spotify_rate_limiter.get_stats()
+
+
+@router.post("/sync-favorites", summary="Sync liked songs to favorites collection")
+async def sync_favorites(_: User = Depends(current_active_user)):
+    """Sync Spotify liked songs to favorites collection.
+
+    Paginates through liked songs until finding a full page of already-known tracks.
+    First run syncs entire library, subsequent runs stop early.
+    """
+    auth_manager = get_auth_manager()
+    token_info = auth_manager.get_cached_token()
+    if not token_info:
+        return {"status": "error", "reason": "not authenticated with Spotify"}
+
+    sp = get_spotify_client()
+
+    inserted_count = 0
+    pages_fetched = 0
+    offset = 0
+    limit = 50
+
+    async with MongoDBConnectionManager() as db:
+        favorites = db["favorites"]
+
+        while True:
+            tracks, total = await asyncio.to_thread(
+                get_saved_tracks_page, sp, limit, offset
+            )
+            pages_fetched += 1
+
+            if not tracks:
+                break
+
+            new_in_page = 0
+            for track in tracks:
+                existing = await favorites.find_one({"track_id": track["track_id"]})
+                if not existing:
+                    await favorites.insert_one(track)
+                    inserted_count += 1
+                    new_in_page += 1
+
+            # If less than all tracks in page are new, we've hit known territory
+            if new_in_page < len(tracks):
+                break
+
+            offset += limit
+
+            # Safety: stop if we've gone through everything
+            if offset >= total:
+                break
+
+    return {
+        "status": "ok",
+        "inserted": inserted_count,
+        "pages_fetched": pages_fetched,
+    }
