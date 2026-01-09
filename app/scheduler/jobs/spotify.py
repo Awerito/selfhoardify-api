@@ -66,86 +66,91 @@ async def poll_current_playback():
     """Poll current playback, detect track changes, update tracks + plays."""
     requests_made = 0
 
-    auth_manager = get_auth_manager()
-    token_info = auth_manager.get_cached_token()
-    if not token_info:
-        _schedule_next_poll(1)
-        return {"status": "skipped", "reason": "not authenticated"}
+    try:
+        auth_manager = get_auth_manager()
+        token_info = auth_manager.get_cached_token()
+        if not token_info:
+            return {"status": "skipped", "reason": "not authenticated"}
 
-    sp = get_spotify_client()
-    redis_client = get_redis_client()
+        sp = get_spotify_client()
+        redis_client = get_redis_client()
 
-    data = await asyncio.to_thread(get_current_playback, sp)
-    requests_made += 1
+        data = await asyncio.to_thread(get_current_playback, sp)
+        requests_made += 1
 
-    if not data:
-        # Nothing playing - clear cache and last_track_id
-        cache_now_playing(redis_client, None)
-        redis_client.delete(NOW_PLAYING_SVG_CACHE_KEY)
-        redis_client.delete(LAST_TRACK_KEY)
-        logger.info("Nothing playing")
+        if not data:
+            # Nothing playing - clear cache and last_track_id
+            cache_now_playing(redis_client, None)
+            redis_client.delete(NOW_PLAYING_SVG_CACHE_KEY)
+            redis_client.delete(LAST_TRACK_KEY)
+            logger.info("Nothing playing")
+            return {"status": "ok", "playing": False}
+
+        now_playing = data["now_playing"]
+        play = data["play"]
+        current_track_id = play["track_id"]
+
+        # Calculate TTL: remaining time + 30 sec buffer
+        remaining_ms = now_playing["duration_ms"] - now_playing["progress_ms"]
+        ttl_seconds = max((remaining_ms // 1000) + 30, 60)  # At least 60 sec
+
+        cache_now_playing(redis_client, now_playing, ttl_seconds)
+
+        # Generate and cache SVG with same TTL
+        svg = generate_now_playing_svg(
+            title=now_playing["title"],
+            artist=now_playing["artist"],
+            album_art_url=now_playing["album_art"],
+            is_playing=now_playing["is_playing"],
+        )
+        cache_now_playing_svg(redis_client, svg, ttl_seconds)
+
+        # Pre-cache album art for dashboard grid
+        ensure_album_art_cached(redis_client, now_playing.get("album_art"))
+
+        # Check if track changed
+        last_track_id = redis_client.get(LAST_TRACK_KEY)
+        if last_track_id:
+            last_track_id = last_track_id.decode("utf-8")
+
+        is_new_listen = current_track_id != last_track_id
+
+        if is_new_listen:
+            async with MongoDBConnectionManager() as db:
+                # Upsert track (increments listen_count)
+                is_new_track = await upsert_track(db, play, increment_count=True)
+
+                # Insert play to log
+                await insert_play(db, play)
+
+                # Sync missing artists/album if new track
+                if is_new_track:
+                    artists_synced = await sync_missing_artists(
+                        db, sp, play.get("artist_ids", [])
+                    )
+                    if artists_synced > 0:
+                        requests_made += 1
+
+                    album_synced = await sync_missing_album(db, sp, play.get("album_id"))
+                    if album_synced > 0:
+                        requests_made += 1
+
+            # Update last track in Redis
+            redis_client.set(LAST_TRACK_KEY, current_track_id)
+
+            status = "NEW TRACK" if is_new_track else "NEW LISTEN"
+            logger.info(f"[{status}] {now_playing['artist']} - {now_playing['title']}")
+        else:
+            logger.debug(f"[playing] {now_playing['artist']} - {now_playing['title']}")
+
+        return {"status": "ok", "playing": True, "new_listen": is_new_listen}
+
+    except Exception as e:
+        logger.error(f"poll_current_playback failed: {e}")
+        return {"status": "error", "reason": str(e)}
+
+    finally:
         _schedule_next_poll(requests_made)
-        return {"status": "ok", "playing": False}
-
-    now_playing = data["now_playing"]
-    play = data["play"]
-    current_track_id = play["track_id"]
-
-    # Calculate TTL: remaining time + 30 sec buffer
-    remaining_ms = now_playing["duration_ms"] - now_playing["progress_ms"]
-    ttl_seconds = max((remaining_ms // 1000) + 30, 60)  # At least 60 sec
-
-    cache_now_playing(redis_client, now_playing, ttl_seconds)
-
-    # Generate and cache SVG with same TTL
-    svg = generate_now_playing_svg(
-        title=now_playing["title"],
-        artist=now_playing["artist"],
-        album_art_url=now_playing["album_art"],
-        is_playing=now_playing["is_playing"],
-    )
-    cache_now_playing_svg(redis_client, svg, ttl_seconds)
-
-    # Pre-cache album art for dashboard grid
-    ensure_album_art_cached(redis_client, now_playing.get("album_art"))
-
-    # Check if track changed
-    last_track_id = redis_client.get(LAST_TRACK_KEY)
-    if last_track_id:
-        last_track_id = last_track_id.decode("utf-8")
-
-    is_new_listen = current_track_id != last_track_id
-
-    if is_new_listen:
-        async with MongoDBConnectionManager() as db:
-            # Upsert track (increments listen_count)
-            is_new_track = await upsert_track(db, play, increment_count=True)
-
-            # Insert play to log
-            await insert_play(db, play)
-
-            # Sync missing artists/album if new track
-            if is_new_track:
-                artists_synced = await sync_missing_artists(
-                    db, sp, play.get("artist_ids", [])
-                )
-                if artists_synced > 0:
-                    requests_made += 1
-
-                album_synced = await sync_missing_album(db, sp, play.get("album_id"))
-                if album_synced > 0:
-                    requests_made += 1
-
-        # Update last track in Redis
-        redis_client.set(LAST_TRACK_KEY, current_track_id)
-
-        status = "NEW TRACK" if is_new_track else "NEW LISTEN"
-        logger.info(f"[{status}] {now_playing['artist']} - {now_playing['title']}")
-    else:
-        logger.debug(f"[playing] {now_playing['artist']} - {now_playing['title']}")
-
-    _schedule_next_poll(requests_made)
-    return {"status": "ok", "playing": True, "new_listen": is_new_listen}
 
 
 async def poll_recently_played():
